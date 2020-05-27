@@ -1,0 +1,115 @@
+echo off
+IF DEFINED APP_DEBUG IF "%APP_DEBUG%" GEQ "3" ( ECHO ***********%~n0%~x0***********)
+goto :MAIN
+
+:DEBUGCOLOR
+    REM    FOR /l %%A IN (0,1,%ESC_COLOR_INDEX%) DO (
+    REM         CALL ECHO Color%%A:%ESC%[%%ESC_COLORS[%%A][0]%%;%%ESC_COLORS[%%A][1]%%mTEST%ESC%[m0
+    REM     )
+    ECHO %ESC%[%ESC_COLORS[%~1][0]%;%ESC_COLORS[%~1][1]%madded%ESC%[0m
+    goto :eof
+    
+:INIT
+    IF "%APP_DEBUG%" GEQ "3" ECHO Color.bat Initiating...
+    SET /A ESC_COLOR_INDEX=0
+    SET /A ESC_HISTORY_INDEX=-1
+    FOR /F %%A in ('ECHO prompt $E^| cmd') DO SET "ESC=%%A"
+    GOTO:eof
+
+:DEBUGHISTORY
+    SETLOCAL 
+        SET STR=ESC_HISTORYS: 
+        FOR /l %%A IN (0,1,%1) DO (
+            CALL SET STR=%%STR%%    [%%A]: %%ESC_HISTORYS[%%A]%%
+        )
+    ENDLOCAL & ECHO %STR%
+    goto :eof
+
+:COLORBACK
+    CALL SET /A ESC_HISTORY_INDEX-=1
+    REM CALL :DEBUGHISTORY 5
+    REM ECHO COLORBACK CURRENT_HISTORY_INDEX:%ESC_HISTORY_INDEX%
+    CALL :ACTIVATECOLOR %%ESC_HISTORYS[%ESC_HISTORY_INDEX%]%%
+    goto :eof
+
+:COLORFORWARD
+    CALL SET /A ESC_HISTORY_INDEX+=1
+    REM CALL :DEBUGHISTORY 5
+    REM ECHO COLORFORWARD CURRENT_HISTORY_INDEX:%ESC_HISTORY_INDEX%
+    CALL :ACTIVATECOLOR %%ESC_HISTORYS[%ESC_HISTORY_INDEX%]%%
+    GOTO :eof
+
+:SWITCHCOLOR
+    SET /A ESC_HISTORY_INDEX+=1
+    SET ESC_HISTORYS[%ESC_HISTORY_INDEX%]=%~1
+    REM CALL :DEBUGHISTORY 5
+    REM ECHO SWITCHCOLOR CURRENT_HISTORY_INDEX:%ESC_HISTORY_INDEX%
+    CALL :ACTIVATECOLOR %~1
+    GOTO :eof
+
+:ACTIVATECOLOR
+    REM ECHO ACTIVATECOLOR. COLORINDEX:%~1
+    IF "%APP_DEBUG%" GEQ "2" (
+        CALL ECHO %ESC%[%%ESC_COLORS[%~1][0]%%;%%ESC_COLORS[%~1][1]%%m Switched COLORINDEX %~1
+    ) ELSE (
+        CALL ECHO %ESC%[%%ESC_COLORS[%~1][0]%%;%%ESC_COLORS[%~1][1]%%m
+    )
+    SET ESC_COLOR_INDEX=%~1
+    goto :eof
+
+:ADDFCOLOR
+    IF NOT DEFINED ESC_COLORS[%~1][0] SET ESC_COLORS[%~1][0]=
+    SET ESC_COLORS[%~1][1]=38;2;%~2;%~3;%~4
+    IF "%APP_DEBUG%" GEQ "3" CALL :DEBUGCOLOR %~1
+    goto :eof
+
+:ADDBGCOLOR
+    IF NOT DEFINED ESC_COLORS[%~1][1] SET ESC_COLORS[%~1][1]=
+    SET ESC_COLORS[%~1][0]=48;2;%~2;%~3;%~4
+    IF "%APP_DEBUG%" GEQ "3" CALL :DEBUGCOLOR %~1
+    goto :eof
+
+:MAIN
+:: DEBUG
+IF "%APP_DEBUG%" GEQ "3" ECHO ARGS: %*
+IF NOT "%~3"=="" ( SET TYPE=%~3) ELSE ( SET TYPE=)
+IF NOT "%~2"=="" ( SET INDEX=%~2) ELSE ( SET INDEX=)
+IF NOT "%~1"=="" ( SET SWITCH=%~1) ELSE ( SET SWITCH=)
+REM ECHO SWITCH: `%SWITCH%` `%~1` INDEX: `%INDEX%` `%~2` TYPE: `%TYPE%` `%~3` 
+
+:: EMPTY ARG 1(SWITCH) CALL INIT
+IF "%SWITCH%"=="" CALL :INIT & goto :end
+
+:: HISTORY BACK SWITCH
+IF "%SWITCH%"=="-1" CALL :COLORBACK & goto :end
+
+:: HISTORY FORWARD SWITCH
+IF "%SWITCH%"=="+1" CALL :COLORFORWARD & goto :end
+
+:: DEBUG SWITCHES TO CONTINUE ON SWITCH `~`
+IF NOT "%SWITCH%"=="~" GOTO:SWITCH_UNKOWN
+
+:: NO ARG 3 means switch&activate color.
+IF "%TYPE%"=="" CALL :SWITCHCOLOR %~2 & goto :end
+
+:: ARG 3(TYPE) adding styles
+IF "%TYPE%"=="brgb" (
+    CALL :ADDBGCOLOR %INDEX% %~4 %~5 %~6
+    IF NOT "%~7"=="" CALL :ADDFCOLOR %INDEX% %~7 %~8 %~9
+    SET /A ESC_COLOR_INDEX=%INDEX%
+)
+IF "%TYPE%"=="frgb" (
+    CALL :ADDFCOLOR %INDEX% %~4 %~5 %~6
+    IF NOT "%~7"=="" CALL :ADDBGCOLOR %INDEX% %~7 %~8 %~9
+    SET /A ESC_COLOR_INDEX=%INDEX%
+)
+goto :end
+
+:SWITCH_UNKOWN
+    ECHO ******************UNKNOWN
+    goto :end
+
+
+:end
+IF DEFINED APP_DEBUG IF "%APP_DEBUG%" GEQ "3" ( ECHO ***********END %~n0%~x0***********)
+exit /b 0
